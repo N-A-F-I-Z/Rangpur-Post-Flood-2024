@@ -1,0 +1,118 @@
+// Rangpur District from FAO dataset
+var districts = ee.FeatureCollection("FAO/GAUL/2015/level2");
+
+var roi = districts.filter(ee.Filter.and(
+  ee.Filter.eq('ADM0_NAME', 'Bangladesh'),
+  ee.Filter.eq('ADM2_NAME', 'Rangpur')
+));
+
+Map.addLayer(roi)
+Map.centerObject(roi, 10)
+
+// Image Collection from Sentinel 2 L2A Multispectral BOA (10 November 2024)
+var image = imageCollection
+  .filterBounds(roi)
+  .filterDate('2024-10-30', '2024-11-10')
+  .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 10))
+  .median()
+  .clip(roi)
+var image = image.reproject('EPSG:4326', null, 10);
+
+//---------------------Part 1: LULC Map using Smiles Cart----------------------
+
+//visualize true color and false color composite maps
+print(image)
+Map.addLayer(image, tc, 'True Color Image')
+Map.addLayer(image, fc, 'False Color Image')
+
+
+//merging of points
+var training_data = waterbody.merge(builtup).merge(furrow).merge(agriculture).merge(vegetation)
+
+Map.addLayer(training_data, {}, 'Training Points')
+
+var label = 'lulc';
+var bands = ['B2', 'B3', 'B4', 'B8'];
+var input = image.select(bands);
+
+//sampling
+var training = input.sampleRegions({
+  collection: training_data,
+  properties: [label],
+  scale: 10,
+});
+
+var r1 = training.randomColumn();
+var trainset = r1.filter(ee.Filter.lessThan('random', 0.8))
+var testset = r1.filter(ee.Filter.greaterThanOrEquals('random', 0.8))
+
+//training classifier (Decision Tree)
+var classifier = ee.Classifier.smileCart().train(trainset, label, bands);
+
+
+//classified image and legends
+var LULC = input.classify(classifier)
+
+print('Number of training points:', training_data.size());
+print('Class distribution:', training_data.aggregate_histogram('lulc'));
+print('Sampled training regions:', training);
+
+
+//Visualization of LULC Map of Rangpur 
+Map.addLayer(LULC, lulc_plt, "LULC Map of Rangpur")
+
+//Accuracy Assessment
+var confusion_matrix = ee.ConfusionMatrix(testset.classify(classifier)
+    .errorMatrix({
+      actual: 'lulc',
+      predicted: 'classification'
+    }));
+
+print('Confusion Matrix:', confusion_matrix)
+print('Overall Accuracy:', confusion_matrix.accuracy())
+
+
+//----------------Part 2: NDWI and Waterbody Extraction ---------------------
+
+// Calculate NDWI (Green - NIR) / (Green + NIR)
+var ndwi = image.normalizedDifference(['B3', 'B8']).rename('NDWI');
+
+// Calculate MNDWI (Green - SWIR1) / (Green + SWIR1)
+var mndwi = image.normalizedDifference(['B3', 'B11']).rename('MNDWI');
+
+// Visualize ndwi and mndwi
+Map.addLayer(ndwi, ndwi_plt, 'NDWI');
+Map.addLayer(mndwi, mndwi_plt, 'MNDWI');
+
+// 4. Extract water bodies (threshold = 0.05)
+var water = ndwi.gt(0.03).selfMask().rename('water');
+
+// 5. Visualize
+Map.centerObject(roi, 10);
+Map.addLayer(water, {palette: ['blue']}, 'Water Bodies');
+
+
+// export files
+Export.image.toDrive({
+  image: LULC,
+  description: 'Land Use Land Cover Map',
+  scale: 10,
+  region: roi,
+  fileFormat: 'GeoTIFF'
+});
+
+Export.image.toDrive({
+  image: ndwi,
+  description: 'Normalized Difference Water Index',
+  scale: 10,
+  region: roi,
+  fileFormat: 'GeoTIFF'
+});
+
+Export.image.toDrive({
+  image: water,
+  description: 'Waterbody Extraction',
+  scale: 10,
+  region: roi,
+  fileFormat: 'GeoTIFF'
+});
