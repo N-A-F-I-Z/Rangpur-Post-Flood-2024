@@ -1,6 +1,8 @@
 # Land Use Land Cover (LULC) and Waterbody Extraction – Rangpur, Bangladesh #
 
-##This project applies Google Earth Engine (GEE) to generate a Land Use Land Cover (LULC) map and extract water bodies for Rangpur District, Bangladesh. The workflow uses Sentinel-2 MSI Level-2A imagery and a Decision Tree (CART) classifier to classify LULC, and applies NDWI/MNDWI indices to extract surface water features.##
+## This project applies Google Earth Engine (GEE) to generate a Land Use Land Cover (LULC) map and extract water bodies for Rangpur District, Bangladesh. The workflow uses Sentinel-2 MSI Level-2A imagery and a Decision Tree (CART) classifier to classify LULC, and applies NDWI/MNDWI indices to extract surface water features. ##
+
+![Rangpur District LULC, NDWI and Extracted Waterbodies Post Flood 2024](Combined%20Map.jpg)
 
 ## 🔹 Data Sources ##
 
